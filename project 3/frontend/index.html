@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base Vote - Voter Power Prediction</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --bg: #09090b;
+            --card: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #fafafa;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: -apple-system, system-ui, sans-serif;
+            min-height: 100vh;
+            padding: 1rem;
+            background-image: radial-gradient(circle at 100% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+                              radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+        }
+
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; }
+        h1 { font-size: 1.5rem; letter-spacing: -0.05em; font-weight: 800; color: #fff; }
+
+        .btn { 
+            padding: 0.75rem 1.25rem; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; background: var(--primary); color: #fff;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+        }
+        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn-outline { background: transparent; border: 1px solid var(--border); }
+        .btn-success { background: #10b981; }
+        .btn-danger { background: #ef4444; }
+
+        .card { background: var(--card); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
+        .card h2 { margin-bottom: 1rem; font-size: 1rem; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .poll-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+        .poll-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .poll-question { font-size: 1.25rem; font-weight: 700; color: #fff; }
+        
+        .voter-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+        .stat-box { background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.75rem; color: #71717a; margin-bottom: 0.25rem; }
+        .stat-value { font-size: 1.125rem; font-weight: 700; color: #fff; }
+
+        .input-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+        input { flex: 1; padding: 0.75rem; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: #fff; outline: none; }
+        
+        .tag { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(139, 92, 246, 0.2); color: var(--primary); font-weight: 600; }
+        .side-btn-group { display: flex; gap: 0.5rem; }
+        .side-btn { flex: 1; padding: 1rem; border-radius: 12px; border: 1px solid var(--border); cursor: pointer; transition: 0.2s; text-align: center; }
+        .side-btn.active-yes { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        .side-btn.active-no { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>BASE <span style="color:var(--primary)">VOTE</span></h1>
+            <button id="connectBtn" class="btn btn-outline" onclick="connectWallet()">Connect Wallet</button>
+        </header>
+
+        <div class="card">
+            <h2>Host a New Poll</h2>
+            <div class="input-group">
+                <input type="text" id="pollQuestion" placeholder="Will Base reach $100B TVL by 2025?">
+                <button class="btn" onclick="createPoll()">Create Poll</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Active Polls</h2>
+            <div id="pollsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- Polls will go here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONTRACT_ADDRESS = "0xa82D6cF2C339105725B9466e2DCDc9FA7FEd2f8A";
+        const ABI = [
+            "function nextPollId() view returns (uint256)",
+            "function getPollInfo(uint256 _pollId) view returns (string, uint256, uint256, uint256, uint256, bool, bool)",
+            "function createPoll(string _question) external returns (uint256)",
+            "function vote(uint256 _pollId, bool _side) external payable",
+            "function resolve(uint256 _pollId) external",
+            "function claim(uint256 _pollId) external"
+        ];
+
+        let provider, signer, contract;
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                await provider.send("eth_requestAccounts", []);
+                signer = provider.getSigner();
+                const addr = await signer.getAddress();
+                document.getElementById('connectBtn').innerText = addr.slice(0,6) + '...' + addr.slice(-4);
+                contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+                loadPolls();
+            }
+        }
+
+        async function createPoll() {
+            const q = document.getElementById('pollQuestion').value;
+            if(!q) return;
+            const tx = await contract.createPoll(q);
+            await tx.wait();
+            loadPolls();
+        }
+
+        async function loadPolls() {
+            const count = await contract.nextPollId();
+            const container = document.getElementById('pollsContainer');
+            container.innerHTML = "";
+            
+            for(let i = count - 1; i >= 0; i--) {
+                const p = await contract.getPollInfo(i);
+                const div = document.createElement('div');
+                div.className = "poll-item";
+                div.innerHTML = `
+                    <div class="poll-header">
+                        <span class="poll-question">${p[0]}</span>
+                        <span class="tag">${p[5] ? 'RESOLVED' : 'ACTIVE'}</span>
+                    </div>
+                    <div class="voter-stats">
+                        <div class="stat-box">
+                            <div class="stat-label">YES VOTERS</div>
+                            <div class="stat-value" style="color:#10b981">${p[1]}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">NO VOTERS</div>
+                            <div class="stat-value" style="color:#ef4444">${p[2]}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">YES POT</div>
+                            <div class="stat-value">${ethers.utils.formatEther(p[3])} ETH</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">NO POT</div>
+                            <div class="stat-value">${ethers.utils.formatEther(p[4])} ETH</div>
+                        </div>
+                    </div>
+                    ${!p[5] ? `
+                        <div class="input-group">
+                            <input type="number" id="bet-${i}" step="0.001" placeholder="Bet Amount (ETH)">
+                            <button class="btn btn-success" onclick="vote(${i}, true)">Vote YES</button>
+                            <button class="btn btn-danger" onclick="vote(${i}, false)">Vote NO</button>
+                        </div>
+                        <button class="btn btn-outline" style="margin-top:0.5rem" onclick="resolve(${i})">Resolve (Host Only)</button>
+                    ` : `
+                        <div style="text-align:center">
+                            <p style="margin-bottom:1rem">Winner: <strong style="color:${p[6] ? '#10b981' : '#ef4444'}">${p[6] ? 'YES' : 'NO'}</strong></p>
+                            <button class="btn" style="width:100%" onclick="claim(${i})">Claim Winnings</button>
+                        </div>
+                    `}
+                `;
+                container.appendChild(div);
+            }
+        }
+
+        async function vote(id, side) {
+            const amount = document.getElementById(`bet-${id}`).value;
+            if(!amount) return;
+            const tx = await contract.vote(id, side, { value: ethers.utils.parseEther(amount) });
+            await tx.wait();
+            loadPolls();
+        }
+
+        async function resolve(id) {
+            const tx = await contract.resolve(id);
+            await tx.wait();
+            loadPolls();
+        }
+
+        async function claim(id) {
+            const tx = await contract.claim(id);
+            await tx.wait();
+            alert("Claimed!");
+            loadPolls();
+        }
+    </script>
+</body>
+</html>
