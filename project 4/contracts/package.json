@@ -1,0 +1,12 @@
+{
+  "name": "base-tip-contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "hardhat": "^2.19.1",
+    "ethers": "^6.8.1",
+    "dotenv": "^16.3.1"
+  }
+}

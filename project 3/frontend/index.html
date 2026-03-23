@@ -3,95 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Base Vote - Voter Power Prediction</title>
+    <title>Base Vote - Decentralized Governance & Betting</title>
     <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
-            --primary: #8b5cf6;
-            --bg: #09090b;
-            --card: rgba(255, 255, 255, 0.03);
-            --border: rgba(255, 255, 255, 0.08);
-            --text: #fafafa;
+            --indigo: #6366f1;
+            --indigo-glow: rgba(99, 102, 241, 0.15);
+            --bg: #030014;
+            --card: rgba(10, 10, 31, 0.82);
+            --border: rgba(99, 102, 241, 0.25);
+            --text: #e2e8f0;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: -apple-system, system-ui, sans-serif;
-            min-height: 100vh;
-            padding: 1rem;
-            background-image: radial-gradient(circle at 100% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
-                              radial-gradient(circle at 0% 100%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+            background: var(--bg); color: var(--text); font-family: 'Outfit', -apple-system, sans-serif; min-height: 100vh; overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);
         }
 
-        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
-        header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; }
-        h1 { font-size: 1.5rem; letter-spacing: -0.05em; font-weight: 800; color: #fff; }
+        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 5%; border-bottom: 1px solid var(--border); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; background: rgba(3,0,20,0.5); }
+        .logo { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.05em; display: flex; align-items: center; gap: 0.6rem; color: #fff; }
+        .logo span { color: var(--indigo); }
 
-        .btn { 
-            padding: 0.75rem 1.25rem; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; background: var(--primary); color: #fff;
-            display: inline-flex; align-items: center; gap: 0.5rem;
+        .container { max-width: 1200px; margin: 3rem auto; padding: 0 2rem; display: grid; grid-template-columns: 1fr 340px; gap: 2.5rem; }
+
+        .hero { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08)); border: 1px solid var(--border); padding: 4rem 3rem; border-radius: 40px; margin-bottom: 1rem; position: relative; overflow: hidden; }
+        .hero h1 { font-size: 3rem; font-weight: 900; color: #fff; margin-bottom: 1rem; letter-spacing: -0.04em; }
+        .hero p { font-size: 1.25rem; color: #94a3b8; max-width: 650px; line-height: 1.5; }
+
+        .poll-card { 
+            background: var(--card); border: 1px solid var(--border); padding: 2.5rem; border-radius: 32px; position: relative; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
         }
-        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .btn-outline { background: transparent; border: 1px solid var(--border); }
-        .btn-success { background: #10b981; }
-        .btn-danger { background: #ef4444; }
-
-        .card { background: var(--card); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; }
-        .card h2 { margin-bottom: 1rem; font-size: 1rem; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.05em; }
-
-        .poll-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
-        .poll-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .poll-question { font-size: 1.25rem; font-weight: 700; color: #fff; }
+        .poll-card:hover { transform: translateY(-6px); border-color: var(--indigo); box-shadow: 0 30px 60px rgba(99,102,241,0.1); }
         
-        .voter-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
-        .stat-box { background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); }
-        .stat-label { font-size: 0.75rem; color: #71717a; margin-bottom: 0.25rem; }
-        .stat-value { font-size: 1.125rem; font-weight: 700; color: #fff; }
+        .poll-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .question { font-size: 1.75rem; font-weight: 800; color: #fff; margin-bottom: 2.5rem; display: block; line-height: 1.2; }
 
-        .input-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
-        input { flex: 1; padding: 0.75rem; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: #fff; outline: none; }
+        .progress-container { margin-bottom: 2rem; }
+        .progress-bar { height: 14px; background: rgba(255,255,255,0.06); border-radius: 7px; overflow: hidden; display: flex; margin-bottom: 0.75rem; }
+        .progress-yes { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); transition: 1.2s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 0 15px rgba(16,185,129,0.3); }
+        .progress-no { height: 100%; background: linear-gradient(90deg, #ef4444, #f87171); transition: 1.2s cubic-bezier(0.23, 1, 0.32, 1); box-shadow: 0 0 15px rgba(239,68,68,0.3); }
+        .progress-labels { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; }
+
+        .vote-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 2rem; }
+        .btn-vote { 
+            padding: 1.125rem; border-radius: 16px; border: none; font-weight: 800; cursor: pointer; transition: 0.2s; font-size: 0.95rem; 
+            display: flex; align-items: center; justify-content: center; gap: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .btn-yes { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .btn-yes:hover { background: #10b981; color: #000; }
+        .btn-no { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .btn-no:hover { background: #ef4444; color: #fff; }
+
+        .sidebar-section { background: var(--card); border: 1px solid var(--border); padding: 1.75rem; border-radius: 28px; margin-bottom: 2rem; }
+        .sidebar-section h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 1.5rem; font-weight: 900; }
+
+        .host-input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border); padding: 1.125rem; border-radius: 16px; color: #fff; margin-bottom: 1rem; outline: none; font-size: 1rem; transition: 0.2s; }
+        .host-input:focus { border-color: var(--indigo); box-shadow: 0 0 0 4px var(--indigo-glow); }
         
-        .tag { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(139, 92, 246, 0.2); color: var(--primary); font-weight: 600; }
-        .side-btn-group { display: flex; gap: 0.5rem; }
-        .side-btn { flex: 1; padding: 1rem; border-radius: 12px; border: 1px solid var(--border); cursor: pointer; transition: 0.2s; text-align: center; }
-        .side-btn.active-yes { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
-        .side-btn.active-no { border-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+        .btn-primary { 
+            width: 100%; background: var(--indigo); color: #fff; padding: 1.125rem; border-radius: 16px; border: none; font-weight: 800; cursor: pointer; 
+            box-shadow: 0 10px 20px var(--indigo-glow); font-size: 1rem; transition: 0.2s;
+        }
+        .btn-primary:hover { transform: scale(1.02); filter: brightness(1.1); }
+
+        .wallet-btn { background: #fff; color: #000; padding: 0.75rem 1.75rem; border-radius: 99px; border: none; font-weight: 800; cursor: pointer; font-size: 0.9rem; transition: 0.2s; box-shadow: 0 4px 12px rgba(255,255,255,0.2); }
+        .wallet-btn:hover { background: #f1f5f9; transform: translateY(-1px); }
+        
+        .badge { padding: 0.45rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 800; background: rgba(255,255,255,0.06); letter-spacing: 0.05em; }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
 <body>
+    <nav class="navbar">
+        <div class="logo">
+            <i data-lucide="award"></i> BASE<span>VOTE</span>
+        </div>
+        <button id="connectBtn" class="wallet-btn" onclick="connectWallet()">Connect Wallet</button>
+    </nav>
+
     <div class="container">
-        <header>
-            <h1>BASE <span style="color:var(--primary)">VOTE</span></h1>
-            <button id="connectBtn" class="btn btn-outline" onclick="connectWallet()">Connect Wallet</button>
-        </header>
-
-        <div class="card">
-            <h2>Host a New Poll</h2>
-            <div class="input-group">
-                <input type="text" id="pollQuestion" placeholder="Will Base reach $100B TVL by 2025?">
-                <button class="btn" onclick="createPoll()">Create Poll</button>
-            </div>
+        <div class="hero">
+            <h1>Predict. Vote. Prevail.</h1>
+            <p>The first decentralized betting platform where the <strong>total number of unique voters</strong> decides the outcome. The crowd always wins.</p>
         </div>
 
-        <div class="card">
-            <h2>Active Polls</h2>
-            <div id="pollsContainer" style="display: flex; flex-direction: column; gap: 1rem;">
-                <!-- Polls will go here -->
+        <section id="pollsContainer" style="display: flex; flex-direction: column;">
+            <!-- Loading Polls... -->
+        </section>
+
+        <aside>
+            <div class="sidebar-section">
+                <h3>CREATE GOVERNANCE POLL</h3>
+                <input type="text" id="pollQuestion" class="host-input" placeholder="What is the next big wave?">
+                <button class="btn-primary" onclick="createPoll()">LAUNCH TO MAINNET</button>
             </div>
-        </div>
+
+            <div class="sidebar-section">
+                <h3>VOTER LEADERBOARD</h3>
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size:0.9rem; font-weight:600; font-family:monospace;">0x82a...1a2b</span>
+                        <span class="badge" style="color:var(--indigo)">42 WINS</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size:0.9rem; font-weight:600; font-family:monospace;">0x3c1...d4e5</span>
+                        <span class="badge" style="color:var(--indigo)">38 WINS</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="background: linear-gradient(to bottom right, rgba(99, 102, 241, 0.1), transparent);">
+                <h3>PLATFORM STATS</h3>
+                <p style="font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.5rem; font-weight:600;">Cumulative Volume</p>
+                <h4 style="font-size: 1.75rem; color: #fff; font-weight:900;">41,932.4 ETH</h4>
+            </div>
+        </aside>
     </div>
 
     <script>
+        lucide.createIcons();
         const CONTRACT_ADDRESS = "0xa82D6cF2C339105725B9466e2DCDc9FA7FEd2f8A";
         const ABI = [
             "function nextPollId() view returns (uint256)",
-            "function getPollInfo(uint256 _pollId) view returns (string, uint256, uint256, uint256, uint256, bool, bool)",
-            "function createPoll(string _question) external returns (uint256)",
-            "function vote(uint256 _pollId, bool _side) external payable",
-            "function resolve(uint256 _pollId) external",
-            "function claim(uint256 _pollId) external"
+            "function getPollInfo(uint256 _id) view returns (string, uint256, uint256, uint256, uint256, bool, bool)",
+            "function createPoll(string _q) external returns (uint256)",
+            "function vote(uint256 _id, bool _side) external payable",
+            "function resolve(uint256 _id) external",
+            "function claim(uint256 _id) external"
         ];
 
         let provider, signer, contract;
@@ -102,18 +145,11 @@
                 await provider.send("eth_requestAccounts", []);
                 signer = provider.getSigner();
                 const addr = await signer.getAddress();
-                document.getElementById('connectBtn').innerText = addr.slice(0,6) + '...' + addr.slice(-4);
+                document.getElementById('connectBtn').innerHTML = `<i data-lucide="check-circle" style="display:inline-block; vertical-align:middle; margin-right:5px; width:18px;"></i> ${addr.slice(0,6)}...${addr.slice(-4)}`;
+                lucide.createIcons();
                 contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
                 loadPolls();
             }
-        }
-
-        async function createPoll() {
-            const q = document.getElementById('pollQuestion').value;
-            if(!q) return;
-            const tx = await contract.createPoll(q);
-            await tx.wait();
-            loadPolls();
         }
 
         async function loadPolls() {
@@ -123,47 +159,62 @@
             
             for(let i = count - 1; i >= 0; i--) {
                 const p = await contract.getPollInfo(i);
+                const totalVoters = parseInt(p[1]) + parseInt(p[2]);
+                const yesPercent = totalVoters > 0 ? (parseInt(p[1]) / totalVoters * 100) : 50;
+                const noPercent = totalVoters > 0 ? (parseInt(p[2]) / totalVoters * 100) : 50;
+
                 const div = document.createElement('div');
-                div.className = "poll-item";
+                div.className = "poll-card";
                 div.innerHTML = `
-                    <div class="poll-header">
-                        <span class="poll-question">${p[0]}</span>
-                        <span class="tag">${p[5] ? 'RESOLVED' : 'ACTIVE'}</span>
+                    <div class="poll-meta">
+                        <span class="badge" style="color:var(--indigo)">GOVERNANCE ID: #${i}</span>
+                        <span class="badge" style="background:${p[5] ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color:${p[5] ? '#ef4444' : '#10b981'}">
+                            ${p[5] ? 'RESOLVED' : 'ACTIVE'}
+                        </span>
                     </div>
-                    <div class="voter-stats">
-                        <div class="stat-box">
-                            <div class="stat-label">YES VOTERS</div>
-                            <div class="stat-value" style="color:#10b981">${p[1]}</div>
+                    <span class="question">${p[0]}</span>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-yes" style="width: ${yesPercent}%"></div>
+                            <div class="progress-no" style="width: ${noPercent}%"></div>
                         </div>
-                        <div class="stat-box">
-                            <div class="stat-label">NO VOTERS</div>
-                            <div class="stat-value" style="color:#ef4444">${p[2]}</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-label">YES POT</div>
-                            <div class="stat-value">${ethers.utils.formatEther(p[3])} ETH</div>
-                        </div>
-                        <div class="stat-box">
-                            <div class="stat-label">NO POT</div>
-                            <div class="stat-value">${ethers.utils.formatEther(p[4])} ETH</div>
+                        <div class="progress-labels">
+                            <span style="color:#10b981">YES: ${p[1]} VOTERS</span>
+                            <span style="color:#ef4444">NO: ${p[2]} VOTERS</span>
                         </div>
                     </div>
+
+                    <div style="display:flex; justify-content:space-between; margin-bottom:2.5rem; color:#94a3b8; font-size:0.9rem; font-weight:700;">
+                        <span>Total Pot: <b style="color:#fff">${ethers.utils.formatEther(p[3].add(p[4]))} ETH</b></span>
+                        ${p[5] ? `<span>Winner: <b style="color:${p[6] ? '#10b981' : '#ef4444'}">${p[6] ? 'YES' : 'NO'}</b></span>` : ''}
+                    </div>
+
                     ${!p[5] ? `
-                        <div class="input-group">
-                            <input type="number" id="bet-${i}" step="0.001" placeholder="Bet Amount (ETH)">
-                            <button class="btn btn-success" onclick="vote(${i}, true)">Vote YES</button>
-                            <button class="btn btn-danger" onclick="vote(${i}, false)">Vote NO</button>
+                        <div style="background:rgba(255,255,255,0.03); padding:2rem; border-radius:24px; border:1px solid var(--border);">
+                            <p style="font-size:0.75rem; color:#94a3b8; margin-bottom:1.25rem; font-weight:900; letter-spacing:0.1em; text-transform:uppercase;">Entry Amount (ETH)</p>
+                            <input type="number" id="bet-${i}" step="0.01" class="host-input" placeholder="0.00" style="margin-bottom:1.5rem;">
+                            <div class="vote-actions">
+                                <button class="btn-vote btn-yes" onclick="vote(${i}, true)">VOTE YES</button>
+                                <button class="btn-vote btn-no" onclick="vote(${i}, false)">VOTE NO</button>
+                            </div>
+                            <button class="btn-primary" style="margin-top:1.5rem; background:transparent; border:1px solid var(--border); box-shadow:none; font-size:0.8rem; color:#64748b;" onclick="resolve(${i})">Resolve (Host Privilege)</button>
                         </div>
-                        <button class="btn btn-outline" style="margin-top:0.5rem" onclick="resolve(${i})">Resolve (Host Only)</button>
                     ` : `
-                        <div style="text-align:center">
-                            <p style="margin-bottom:1rem">Winner: <strong style="color:${p[6] ? '#10b981' : '#ef4444'}">${p[6] ? 'YES' : 'NO'}</strong></p>
-                            <button class="btn" style="width:100%" onclick="claim(${i})">Claim Winnings</button>
-                        </div>
+                        <button class="btn-primary" onclick="claim(${i})" style="padding:1.5rem;">COLLECT REWARDS</button>
                     `}
                 `;
                 container.appendChild(div);
+                lucide.createIcons();
             }
+        }
+
+        async function createPoll() {
+            const q = document.getElementById('pollQuestion').value;
+            if(!q) return;
+            const tx = await contract.createPoll(q);
+            await tx.wait();
+            loadPolls();
         }
 
         async function vote(id, side) {
@@ -183,7 +234,7 @@
         async function claim(id) {
             const tx = await contract.claim(id);
             await tx.wait();
-            alert("Claimed!");
+            alert("Reward collected on Base!");
             loadPolls();
         }
     </script>
