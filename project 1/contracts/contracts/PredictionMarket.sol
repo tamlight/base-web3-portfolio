@@ -12,6 +12,8 @@ contract PredictionMarket {
     IERC20 public immutable usdc;
 
     struct Market {
+        string question;
+        uint256 endTime;
         uint256 totalYes;
         uint256 totalNo;
         bool resolved;
@@ -19,14 +21,18 @@ contract PredictionMarket {
         uint256 totalPot;
     }
 
-    Market public market;
-    mapping(address => uint256) public betsYes;
-    mapping(address => uint256) public betsNo;
-    mapping(address => bool) public claimed;
+    uint256 public nextMarketId;
+    mapping(uint256 => Market) public markets;
+    
+    // marketId => user => amount
+    mapping(uint256 => mapping(address => uint256)) public betsYes;
+    mapping(uint256 => mapping(address => uint256)) public betsNo;
+    mapping(uint256 => mapping(address => bool)) public claimed;
 
-    event BetPlaced(address indexed user, bool outcome, uint256 amount);
-    event MarketResolved(bool outcome);
-    event WinningsClaimed(address indexed user, uint256 amount);
+    event MarketCreated(uint256 indexed marketId, string question, uint256 endTime);
+    event BetPlaced(uint256 indexed marketId, address indexed user, bool outcome, uint256 amount);
+    event MarketResolved(uint256 indexed marketId, bool outcome);
+    event WinningsClaimed(uint256 indexed marketId, address indexed user, uint256 amount);
 
     constructor(address _usdc) {
         owner = msg.sender;
@@ -38,59 +44,78 @@ contract PredictionMarket {
         _;
     }
 
-    function bet(bool _outcome, uint256 _amount) external {
-        require(!market.resolved, "Market already resolved");
+    // Admin creates a new market with a specific strictly enforced duration
+    function createMarket(string memory _question, uint256 _durationSeconds) external onlyOwner {
+        uint256 marketId = nextMarketId++;
+        Market storage m = markets[marketId];
+        m.question = _question;
+        m.endTime = block.timestamp + _durationSeconds;
+        
+        emit MarketCreated(marketId, _question, m.endTime);
+    }
+
+    function bet(uint256 _marketId, bool _outcome, uint256 _amount) external {
+        Market storage m = markets[_marketId];
+        require(bytes(m.question).length > 0, "Market does not exist");
+        require(!m.resolved, "Market already resolved");
+        require(block.timestamp < m.endTime, "Betting phase has ended");
         require(_amount > 0, "Amount must be > 0");
 
         require(usdc.transferFrom(msg.sender, address(this), _amount), "USDC transfer failed");
 
         if (_outcome) {
-            market.totalYes += _amount;
-            betsYes[msg.sender] += _amount;
+            m.totalYes += _amount;
+            betsYes[_marketId][msg.sender] += _amount;
         } else {
-            market.totalNo += _amount;
-            betsNo[msg.sender] += _amount;
+            m.totalNo += _amount;
+            betsNo[_marketId][msg.sender] += _amount;
         }
-        market.totalPot += _amount;
+        m.totalPot += _amount;
 
-        emit BetPlaced(msg.sender, _outcome, _amount);
+        emit BetPlaced(_marketId, msg.sender, _outcome, _amount);
     }
 
-    function resolve(bool _outcome) external onlyOwner {
-        require(!market.resolved, "Already resolved");
-        market.resolved = true;
-        market.outcome = _outcome;
-        emit MarketResolved(_outcome);
+    // Admin dictates the final settlement outcome. Must wait for betting phase to end.
+    function resolve(uint256 _marketId, bool _outcome) external onlyOwner {
+        Market storage m = markets[_marketId];
+        require(bytes(m.question).length > 0, "Market does not exist");
+        require(!m.resolved, "Already resolved");
+        require(block.timestamp >= m.endTime, "Betting phase still active");
+
+        m.resolved = true;
+        m.outcome = _outcome;
+        emit MarketResolved(_marketId, _outcome);
     }
 
-    function claim() external {
-        require(market.resolved, "Market not resolved");
-        require(!claimed[msg.sender], "Already claimed");
+    function claim(uint256 _marketId) external {
+        Market storage m = markets[_marketId];
+        require(m.resolved, "Market not resolved");
+        require(!claimed[_marketId][msg.sender], "Already claimed");
 
         uint256 userBet;
         uint256 totalWinningBets;
 
-        if (market.outcome) {
-            userBet = betsYes[msg.sender];
-            totalWinningBets = market.totalYes;
+        if (m.outcome) {
+            userBet = betsYes[_marketId][msg.sender];
+            totalWinningBets = m.totalYes;
         } else {
-            userBet = betsNo[msg.sender];
-            totalWinningBets = market.totalNo;
+            userBet = betsNo[_marketId][msg.sender];
+            totalWinningBets = m.totalNo;
         }
 
         require(userBet > 0, "No winning bets");
         
-        // Calculate winnings: share of the total pot
-        // Formula: (userBet / totalWinningBets) * totalPot
-        uint256 winnings = (userBet * market.totalPot) / totalWinningBets;
+        uint256 winnings = (userBet * m.totalPot) / totalWinningBets;
         
-        claimed[msg.sender] = true;
+        claimed[_marketId][msg.sender] = true;
         require(usdc.transfer(msg.sender, winnings), "Transfer failed");
 
-        emit WinningsClaimed(msg.sender, winnings);
+        emit WinningsClaimed(_marketId, msg.sender, winnings);
     }
 
-    function getMarketInfo() external view returns (uint256, uint256, bool, bool, uint256) {
-        return (market.totalYes, market.totalNo, market.resolved, market.outcome, market.totalPot);
+    // Frontend helper
+    function getMarketInfo(uint256 _marketId) external view returns (string memory, uint256, uint256, uint256, bool, bool, uint256) {
+        Market storage m = markets[_marketId];
+        return (m.question, m.endTime, m.totalYes, m.totalNo, m.resolved, m.outcome, m.totalPot);
     }
 }
