@@ -60,6 +60,7 @@ export default function Home() {
   const { isConnected, address } = useAccount();
   const [seller, setSeller] = useState('');
   const [amount, setAmount] = useState('');
+  const [activeTab, setActiveTab] = useState('transactions'); // 'transactions' or 'help'
   
   const { data: nextId, refetch } = useReadContract({
     address: CONTRACT_ADDRESS,
@@ -102,8 +103,18 @@ export default function Home() {
         </div>
         
         <nav className="space-y-2 flex-1">
-          <NavItem icon={<History className="w-4 h-4" />} label="Transactions" active />
-          <NavItem icon={<HelpCircle className="w-4 h-4" />} label="Help" />
+          <NavItem 
+            icon={<History className="w-4 h-4" />} 
+            label="Transactions" 
+            active={activeTab === 'transactions'} 
+            onClick={() => setActiveTab('transactions')} 
+          />
+          <NavItem 
+            icon={<HelpCircle className="w-4 h-4" />} 
+            label="Help" 
+            active={activeTab === 'help'} 
+            onClick={() => setActiveTab('help')} 
+          />
         </nav>
 
         <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
@@ -116,24 +127,30 @@ export default function Home() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto px-12 py-10">
+      <main className="flex-1 overflow-y-auto px-12 py-10 relative">
         <header className="flex justify-between items-center mb-12">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Escrow Dashboard</h1>
-            <p className="text-gray-400 mt-1">Securely exchange assets on the Base network.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight">
+              {activeTab === 'transactions' ? 'Escrow Dashboard' : 'Help & Documentation'}
+            </h1>
+            <p className="text-gray-400 mt-1">
+              {activeTab === 'transactions' 
+                ? 'Securely exchange assets on the Base network.' 
+                : 'Learn how to securely trade via trustless smart contracts.'}
+            </p>
           </div>
           <ConnectKitButton />
         </header>
 
-        {!isConnected ? (
+        {!isConnected && activeTab === 'transactions' ? (
           <div className="h-96 flex flex-col items-center justify-center bg-white/5 rounded-[32px] border border-dashed border-white/10">
             <Wallet className="w-12 h-12 text-gray-600 mb-4" />
             <h3 className="text-xl font-semibold mb-2 text-white">Unlock Secure Trading</h3>
             <p className="text-gray-500 mb-6 text-center max-w-xs">Connect your wallet with Project 1 Standard to start managing your on-chain escrows.</p>
             <ConnectKitButton />
           </div>
-        ) : (
-          <div className="grid grid-cols-12 gap-8">
+        ) : activeTab === 'transactions' ? (
+          <div className="grid grid-cols-12 gap-8 animate-fade-in">
             {/* Create Action */}
             <div className="col-span-12 lg:col-span-4 space-y-8">
               <section className="bg-white/5 p-8 rounded-[32px] border border-white/5 relative overflow-hidden group shadow-2xl">
@@ -143,7 +160,7 @@ export default function Home() {
                 <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-white">
                   <Plus className="w-5 h-5 text-emerald-500" /> New Escrow
                 </h3>
-                <div className="space-y-4">
+                <div className="space-y-4 relative z-10">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Seller Address</label>
                     <input 
@@ -212,18 +229,90 @@ export default function Home() {
               </div>
             </div>
           </div>
+        ) : (
+          <HelpSection />
         )}
       </main>
+      
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 }
 
-function NavItem({ icon, label, active = false }) {
+function HelpSection() {
   return (
-    <a href="#" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-white/5 text-emerald-400 border border-white/5 shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'}`}>
+    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+      <div className="bg-gradient-to-br from-emerald-500/10 to-transparent p-10 rounded-[40px] border border-emerald-500/20 shadow-2xl">
+        <h2 className="text-3xl font-black mb-6 text-white tracking-tight flex items-center gap-4">
+          <ShieldCheck className="w-10 h-10 text-emerald-400" /> Trustless Protection
+        </h2>
+        <p className="text-lg text-emerald-100/70 leading-relaxed font-medium">
+          BaseEscrow allows you to trade goods and services with zero counterparty risk. The Smart Contract firmly locks the ETH until you explicitly verify that your purchase was fulfilled.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 hover:border-white/10 transition-all">
+          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20">
+            <span className="text-emerald-500 font-black text-xl">1</span>
+          </div>
+          <h3 className="text-xl font-bold text-white mb-3">Initialize</h3>
+          <p className="text-gray-400 text-sm leading-relaxed">
+            The Buyer inputs the Seller's wallet address and the exact amount of ETH agreed upon. This ETH is securely transmitted directly to the unhackable Escrow Smart Contract.
+          </p>
+        </div>
+
+        <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 hover:border-white/10 transition-all">
+          <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20">
+            <span className="text-blue-500 font-black text-xl">2</span>
+          </div>
+          <h3 className="text-xl font-bold text-white mb-3">Release Funds</h3>
+          <p className="text-gray-400 text-sm leading-relaxed">
+            Once the Seller successfully delivers the goods or services, the Buyer clicks <strong className="text-emerald-400 bg-emerald-400/10 px-1 rounded">RELEASE</strong>. The Escrow contract immediately unlocks and funnels the ETH to the Seller.
+          </p>
+        </div>
+
+        <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 hover:border-white/10 transition-all">
+          <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center mb-6 border border-red-500/20">
+            <span className="text-red-500 font-black text-xl">3</span>
+          </div>
+          <h3 className="text-xl font-bold text-white mb-3">Seller Refund</h3>
+          <p className="text-gray-400 text-sm leading-relaxed">
+            If the Seller cannot fulfill the agreement, they (and only they) can execute a <strong className="text-red-400 bg-red-400/10 px-1 rounded">REFUND</strong> function to safely return the locked ETH back directly into the Buyer's wallet.
+          </p>
+        </div>
+      </div>
+      
+      <div className="bg-white/5 p-8 rounded-[32px] border border-white/5 flex items-center justify-between">
+        <div>
+           <h4 className="font-bold text-white mb-1">Contract Address</h4>
+           <p className="text-gray-500 text-xs font-mono">0xD1da1A78e0645722deA52B3a58779045f310c8dE</p>
+        </div>
+        <a href="https://basescan.org" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-bold tracking-widest uppercase text-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all px-4 py-2 rounded-xl border border-emerald-500/20">
+           Verify on Basescan <ArrowRight className="w-4 h-4" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function NavItem({ icon, label, active = false, onClick }) {
+  return (
+    <button 
+      onClick={(e) => { e.preventDefault(); onClick && onClick(); }}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active ? 'bg-white/5 text-emerald-400 border border-white/5 shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/[0.02]'}`}
+    >
       {icon}
       <span className="font-semibold text-sm">{label}</span>
-    </a>
+    </button>
   );
 }
 
